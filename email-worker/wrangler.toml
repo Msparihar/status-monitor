@@ -1,0 +1,6 @@
+name = "status-email-worker"
+main = "src/index.ts"
+compatibility_date = "2024-12-30"
+
+[vars]
+WEBHOOK_URL = "https://status.manishsingh.tech/webhook/wh_9f3a7b2c1d8e4f6a0b5c7d9e2f4a6b8c"

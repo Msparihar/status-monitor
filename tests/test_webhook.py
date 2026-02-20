@@ -64,3 +64,36 @@ def test_duplicate_component_is_deduped(client):
 
     resp2 = client.post(f"/webhook/{SECRET}", json=SAMPLE_COMPONENT_PAYLOAD)
     assert resp2.json()["duplicate"] is True
+
+
+def test_email_webhook(client):
+    payload = {
+        "source": "email",
+        "from": "noreply@incident.io",
+        "to": "status@manishsingh.tech",
+        "subject": "OpenAI API - Degraded Performance",
+        "body": "We are investigating elevated error rates on Chat Completions.",
+        "received_at": "2026-02-20T16:00:00Z",
+    }
+    resp = client.post(f"/webhook/{SECRET}", json=payload)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["received"] is True
+    assert data["source"] == "email"
+    assert data["subject"] == "OpenAI API - Degraded Performance"
+
+
+def test_email_webhook_deduped(client):
+    payload = {
+        "source": "email",
+        "from": "noreply@incident.io",
+        "to": "status@manishsingh.tech",
+        "subject": "OpenAI API - Degraded Performance",
+        "body": "Same incident update.",
+        "received_at": "2026-02-20T16:00:00Z",
+    }
+    resp1 = client.post(f"/webhook/{SECRET}", json=payload)
+    assert resp1.json().get("duplicate") is not True
+
+    resp2 = client.post(f"/webhook/{SECRET}", json=payload)
+    assert resp2.json()["duplicate"] is True

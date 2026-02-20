@@ -41,6 +41,11 @@ async def handle_webhook(secret: str, request: Request):
 
     payload = await request.json()
 
+    # Email-sourced events (from Cloudflare Email Worker)
+    if payload.get("source") == "email":
+        return await _handle_email(payload)
+
+    # Statuspage-format webhooks
     if "incident" in payload:
         return await _handle_incident(payload)
     elif "component_update" in payload:
@@ -50,6 +55,35 @@ async def handle_webhook(secret: str, request: Request):
 
     logger.warning(f"Unknown webhook payload keys: {list(payload.keys())}")
     return {"received": True, "type": "unknown"}
+
+
+async def _handle_email(payload: dict):
+    """Handle email-sourced status notifications (via Cloudflare Email Worker)."""
+    subject = payload.get("subject", "")
+    body = payload.get("body", "")
+    sender = payload.get("from", "")
+    received_at = payload.get("received_at", "")
+
+    dedup_key = make_event_key("email", "notification", subject, received_at[:16])
+    if event_cache.seen_or_mark(dedup_key):
+        return {"received": True, "duplicate": True}
+
+    log_event(
+        source="email",
+        provider=sender,
+        product=subject,
+        event_type="email_notification",
+        status="received",
+        detail=body[:500] if body else "",
+    )
+
+    # AI enrichment on the email content
+    if body:
+        summary = await enrich_with_ai(subject, "email_notification", [body[:1000]])
+        if summary:
+            logger.info(f"  [AI Summary] {summary}")
+
+    return {"received": True, "source": "email", "subject": subject}
 
 
 async def _handle_incident(payload: dict):
